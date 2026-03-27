@@ -82,7 +82,10 @@ def test_ex11_somme_chiffres():
 def test_ex12_tableau_ops():
     inputs = '6,1,2,3,4,5,6'
     lines = run_algo(f'{BASE}/ex12_tableau_ops.algo', inputs)
-    assert any('6' in l and 'max' in l for l in lines) or any('21' in l for l in lines)
+    # With n=6 and array [1,2,3,4,5,6]: max=6, min=1, somme=21
+    assert any('max=6' in l for l in lines)
+    assert any('min=1' in l for l in lines)
+    assert any('21' in l for l in lines)
 
 def test_ex13_contient_numero_yes():
     lines = run_algo(f'{BASE}/ex13_contient_numero.algo', 'abc3def')

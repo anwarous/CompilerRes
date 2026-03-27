@@ -10,9 +10,12 @@ class InterpreterError(Exception):
     pass
 
 class Environment:
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, isolated=False):
         self.vars = {}
         self.parent = parent
+        # isolated=True means this is a function/procedure scope: writes never
+        # leak to the parent scope (only reads fall through for globals).
+        self.isolated = isolated
 
     def get(self, name):
         name = name.lower()
@@ -30,13 +33,15 @@ class Environment:
         if name in self.vars:
             self.vars[name] = value
             return True
-        if self.parent:
+        if self.parent and not self.isolated:
             return self.parent.set_existing(name, value)
-        # If not found anywhere, create in current scope
+        # Isolated scope or top-level: create in current scope
         self.vars[name] = value
         return True
 
 class Interpreter:
+    # Guard against infinite loops: raise RuntimeError after this many iterations
+    # in a single repeter/tant-que/pour loop.
     MAX_ITERATIONS = 1_000_000
 
     def __init__(self, program, input_queue=None):
@@ -161,7 +166,7 @@ class Interpreter:
         raise InterpreterError(f"Unknown procedure: {name}")
 
     def call_proc(self, proc_def, call_args_nodes, caller_env):
-        local_env = Environment(parent=self.global_env)
+        local_env = Environment(parent=self.global_env, isolated=True)
         ref_params = []
 
         for (by_ref, param_name, param_type), arg_node in zip(proc_def.params, call_args_nodes):
@@ -181,7 +186,7 @@ class Interpreter:
             self.assign_target(arg_node, new_val, c_env)
 
     def call_func(self, func_def, call_args_nodes, caller_env):
-        local_env = Environment(parent=self.global_env)
+        local_env = Environment(parent=self.global_env, isolated=True)
 
         for (by_ref, param_name, param_type), arg_node in zip(func_def.params, call_args_nodes):
             val = self.eval_expr(arg_node, caller_env)

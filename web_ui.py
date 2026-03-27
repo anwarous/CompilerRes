@@ -1,4 +1,5 @@
 from flask import Flask, render_template_string, request, jsonify
+from unittest.mock import patch
 import sys, os
 sys.path.insert(0, os.path.dirname(__file__))
 from lexer import Lexer
@@ -70,7 +71,6 @@ def run_code():
         program = Parser(tokens).parse()
         input_queue = [x.strip() for x in inputs_str.split(',')] if inputs_str else []
 
-        from unittest.mock import patch
         output_lines = []
 
         def mock_print(*args, **kwargs):

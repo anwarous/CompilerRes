@@ -102,6 +102,9 @@ class ParseError(Exception):
     pass
 
 class Parser:
+    # Token types that mark the end of a block
+    BLOCK_END_TOKENS = {TT.FIN, TT.FIN_SI, TT.FIN_POUR, TT.FIN_TANTQUE, TT.SINON, TT.JUSQUA, TT.EOF}
+
     def __init__(self, tokens):
         self.tokens = tokens
         self.pos = 0
@@ -251,8 +254,7 @@ class Parser:
 
     def parse_block(self):
         stmts = []
-        END_TOKENS = {TT.FIN, TT.FIN_SI, TT.FIN_POUR, TT.FIN_TANTQUE, TT.SINON, TT.JUSQUA, TT.EOF}
-        while self.peek().type not in END_TOKENS:
+        while self.peek().type not in self.BLOCK_END_TOKENS:
             stmt = self.parse_stmt()
             if stmt is not None:
                 stmts.append(stmt)
