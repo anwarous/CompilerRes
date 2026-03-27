@@ -1,8 +1,0 @@
-Algorithme ex01
-debut
-    Ecrire("donner n : ")
-    Lire(n)
-    pour i de n a n + 10 faire
-        Ecrire(i)
-    fin pour
-fin
