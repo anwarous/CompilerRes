@@ -1,0 +1,15 @@
+fonction somme(n : entier) : entier
+debut
+    si n <= 0 alors
+        retourner 0
+    sinon
+        retourner n + somme(n - 1)
+    fin si
+fin
+
+Algorithme ex21
+debut
+    Ecrire("Donner n : ")
+    Lire(n)
+    Ecrire("Somme de 1 a ", n, " = ", somme(n))
+fin
