@@ -1,0 +1,18 @@
+Algorithme ex14
+debut
+    Lire(n)
+    pour i de 0 a n-1 faire
+        Lire(T[i])
+    fin pour
+    ch <-- ""
+    pour i de 0 a n-1 faire
+        j <-- i + 1
+        tant que j <= n-1 et T[i] > T[j] faire
+            j <-- j + 1
+        fin tant que
+        si j > n-1 alors
+            ch <-- ch + " " + convch(T[i])
+        fin si
+    fin pour
+    Ecrire(ch)
+fin

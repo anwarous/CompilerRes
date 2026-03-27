@@ -1,0 +1,21 @@
+fonction contient_numero(mdp : chaine) : booleen
+debut
+    v <-- faux
+    pour i de 0 a long(mdp)-1 faire
+        si mdp[i] >= "0" et mdp[i] <= "9" alors
+            v <-- vrai
+        fin si
+    fin pour
+    retourner v
+fin
+
+Algorithme ex13
+debut
+    Ecrire("Entrez une chaine : ")
+    Lire(ch)
+    si contient_numero(ch) alors
+        Ecrire("contient un chiffre")
+    sinon
+        Ecrire("ne contient pas de chiffre")
+    fin si
+fin

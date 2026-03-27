@@ -1,0 +1,33 @@
+Algorithme ex15
+debut
+    Lire(n)
+    pour i de 0 a n-1 faire
+        Lire(T1[i])
+    fin pour
+    Lire(m)
+    pour i de 0 a m-1 faire
+        Lire(T2[i])
+    fin pour
+    j <-- 0
+    k <-- 0
+    pour i de 0 a n+m-1 faire
+        si j < n et k < m alors
+            si T1[j] < T2[k] alors
+                C[i] <-- T1[j]
+                j <-- j + 1
+            sinon
+                C[i] <-- T2[k]
+                k <-- k + 1
+            fin si
+        sinon si j < n alors
+            C[i] <-- T1[j]
+            j <-- j + 1
+        sinon
+            C[i] <-- T2[k]
+            k <-- k + 1
+        fin si
+    fin pour
+    pour i de 0 a n+m-1 faire
+        Ecrire(C[i])
+    fin pour
+fin
