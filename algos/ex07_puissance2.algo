@@ -1,0 +1,12 @@
+Algorithme ex07
+debut
+    Ecrire("Saisissez X : ")
+    Lire(X)
+    Ecrire("Saisissez n (entier positif) : ")
+    Lire(n)
+    resultat <-- 1
+    pour i de 1 a n faire
+        resultat <-- resultat * X
+    fin pour
+    Ecrire("Sortie : ", resultat)
+fin

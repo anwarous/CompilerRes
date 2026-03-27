@@ -1,0 +1,14 @@
+fonction fact(n : entier) : entier
+debut
+    si n <= 1 alors
+        retourner 1
+    sinon
+        retourner n * fact(n-1)
+    fin si
+fin
+
+Algorithme ex16
+debut
+    Lire(n)
+    Ecrire(fact(n))
+fin

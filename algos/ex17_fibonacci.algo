@@ -1,0 +1,12 @@
+Algorithme ex17
+debut
+    Lire(n)
+    a <-- 0
+    b <-- 1
+    pour i de 1 a n faire
+        Ecrire(a)
+        c <-- a + b
+        a <-- b
+        b <-- c
+    fin pour
+fin

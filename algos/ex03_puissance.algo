@@ -1,0 +1,12 @@
+Algorithme ex03
+debut
+    Ecrire("a : ")
+    Lire(a)
+    Ecrire("b : ")
+    Lire(b)
+    p <-- 1
+    pour i de 1 a b faire
+        p <-- p * a
+    fin pour
+    Ecrire(a, "^", b, " = ", p)
+fin

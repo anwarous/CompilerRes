@@ -1,0 +1,18 @@
+Algorithme ex06
+debut
+    Ecrire("Entrez un entier : ")
+    Lire(n)
+    si (n MOD 2 = 0) alors
+        si (n >= 0) alors
+            Ecrire("Pair et Positif")
+        sinon
+            Ecrire("Pair et Negatif")
+        fin si
+    sinon
+        si (n >= 0) alors
+            Ecrire("Impair et Positif")
+        sinon
+            Ecrire("Impair et Negatif")
+        fin si
+    fin si
+fin

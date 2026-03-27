@@ -1,0 +1,17 @@
+Algorithme ex10
+debut
+    Ecrire("budget = ")
+    Lire(budget)
+    repeter
+        Ecrire("montant ")
+        Lire(montant)
+        si montant > budget alors
+            Ecrire("error")
+        sinon
+            budget <-- budget - montant
+        fin si
+        Ecrire("continuer ? (oui ou non) ")
+        Lire(msg)
+    jusqu'a msg = "non"
+    Ecrire("budget restant : ", budget)
+fin
