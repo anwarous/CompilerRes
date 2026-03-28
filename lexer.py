@@ -50,6 +50,8 @@ class TT(Enum):
     CHAINE = auto()
     CARACTERE = auto()
     ENREGISTREMENT = auto()
+    AVEC = auto()
+    FIN_AVEC = auto()
     FICHIER = auto()
     TEXTE = auto()
     SELON = auto()
@@ -137,6 +139,7 @@ KEYWORDS = {
     'caract\u00e8re': TT.CARACTERE,
     'caract\u00e8res': TT.CARACTERE,
     'enregistrement': TT.ENREGISTREMENT,
+    'avec': TT.AVEC,
     'fichier': TT.FICHIER,
     'texte': TT.TEXTE,
     'selon': TT.SELON,
@@ -299,6 +302,9 @@ class Lexer:
                             self.restore_state(state2)
                             self.tokens.append(Token(TT.FIN_TANTQUE, 'fin tant que', line, col))
                             continue
+                    elif next_lower == 'avec':
+                        self.tokens.append(Token(TT.FIN_AVEC, 'fin avec', line, col))
+                        continue
                     elif next_lower in ('tantque', 'fintantque'):
                         self.tokens.append(Token(TT.FIN_TANTQUE, 'fin tant que', line, col))
                         continue
@@ -308,6 +314,9 @@ class Lexer:
                         continue
 
                 # Compound finsi, finpour, fintantque, finselon (no space)
+                if word_lower == 'finavec':
+                    self.tokens.append(Token(TT.FIN_AVEC, 'finavec', line, col))
+                    continue
                 if word_lower == 'finsi':
                     self.tokens.append(Token(TT.FIN_SI, 'finsi', line, col))
                     continue

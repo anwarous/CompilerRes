@@ -160,13 +160,18 @@ class EcrireStmt:
 class LireStmt:
     args: list
 
+@dataclass
+class AvecStmt:
+    record_name: str
+    body: list
+
 class ParseError(Exception):
     pass
 
 class Parser:
     # Token types that mark the end of a block
     BLOCK_END_TOKENS = {TT.FIN, TT.FIN_SI, TT.FIN_POUR, TT.FIN_TANTQUE,
-                        TT.FIN_SELON, TT.SINON, TT.JUSQUA, TT.EOF}
+                        TT.FIN_SELON, TT.FIN_AVEC, TT.SINON, TT.JUSQUA, TT.EOF}
 
     # Token types that are valid simple type keywords
     TYPE_TOKENS = {TT.ENTIER, TT.REEL, TT.BOOLEEN, TT.CHAINE, TT.CARACTERE}
@@ -495,6 +500,9 @@ class Parser:
         if tok.type == TT.SELON:
             return self.parse_selon()
 
+        if tok.type == TT.AVEC:
+            return self.parse_avec()
+
         if tok.type == TT.RETOURNER:
             self.advance()
             val = self.parse_expr()
@@ -599,6 +607,18 @@ class Parser:
 
         self.expect(TT.FIN_SELON)
         return SeIon(expr=expr, cases=cases, otherwise=otherwise)
+
+    def parse_avec(self):
+        """Parse: Avec <record_name> <body> Fin Avec"""
+        self.expect(TT.AVEC)
+        tok = self.peek()
+        if tok.type in (TT.ID, TT.A):
+            name = self.advance().value
+        else:
+            name = self.expect(TT.ID).value  # raises ParseError with a clear message
+        body = self.parse_block()
+        self.expect(TT.FIN_AVEC)
+        return AvecStmt(record_name=name, body=body)
 
     def parse_selon_value(self):
         """Parse a single case value: literal or literal..literal range."""

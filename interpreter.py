@@ -6,7 +6,7 @@ import os
 from parser import (Program, ProcDef, FuncDef, Assign, If, For, While, Repeat,
                     Return, ProcCall, FuncCall, ArrayAccess, FieldAccess,
                     RangeValue, SeIon, SeIonCase,
-                    BinOp, UnaryOp, Literal, Var, EcrireStmt, LireStmt,
+                    BinOp, UnaryOp, Literal, Var, EcrireStmt, LireStmt, AvecStmt,
                     VarDecl, ArrayDecl, RecordDecl, RecordField, FileDecl, TypeDef)
 
 class ReturnException(Exception):
@@ -71,6 +71,43 @@ class Environment:
         # Isolated scope or top-level: create in current scope
         self.vars[name] = value
         return True
+
+class AvecEnvironment(Environment):
+    """Environment used inside an 'avec' block.
+
+    Provides transparent access to record fields by their bare names so that
+    code inside an 'avec monRec ... fin avec' block can write 'field' instead
+    of 'monRec.field'.  Reads and writes for names that match a record field
+    are redirected directly to the underlying record dict.  All other names
+    fall through to the parent environment as usual.
+    """
+
+    def __init__(self, parent, record):
+        super().__init__(parent=parent, isolated=False)
+        # Keep a live reference to the record dict; mutations are reflected
+        # immediately in the parent environment because Python dicts are passed
+        # by reference.
+        self.record = record
+
+    def get(self, name):
+        name_lower = name.lower()
+        if name_lower in self.record:
+            return self.record[name_lower]
+        return super().get(name)
+
+    def set(self, name, value):
+        name_lower = name.lower()
+        if name_lower in self.record:
+            self.record[name_lower] = value
+        else:
+            super().set(name, value)
+
+    def set_existing(self, name, value):
+        name_lower = name.lower()
+        if name_lower in self.record:
+            self.record[name_lower] = value
+            return True
+        return super().set_existing(name, value)
 
 class Interpreter:
     # Guard against infinite loops: raise RuntimeError after this many iterations
@@ -205,6 +242,16 @@ class Interpreter:
 
         elif isinstance(stmt, ProcCall):
             self.call_proc_or_builtin(stmt.name, stmt.args, env)
+
+        elif isinstance(stmt, AvecStmt):
+            self._exec_avec(stmt, env)
+
+    def _exec_avec(self, stmt, env):
+        record = env.get(stmt.record_name)
+        if not isinstance(record, dict):
+            raise InterpreterError(f"Avec: '{stmt.record_name}' is not a record")
+        avec_env = AvecEnvironment(parent=env, record=record)
+        self.exec_block(stmt.body, avec_env)
 
     def _exec_ecrire(self, stmt, env):
         """Handle Écrire / Écrire_nl — also handles file writes when first arg is a FileHandle."""
