@@ -7,6 +7,7 @@ class TT(Enum):
     INT_LIT = auto()
     FLOAT_LIT = auto()
     STRING_LIT = auto()
+    CHAR_LIT = auto()
     ID = auto()
     ALGO = auto()
     DEBUT = auto()
@@ -14,6 +15,7 @@ class TT(Enum):
     FIN_SI = auto()
     FIN_POUR = auto()
     FIN_TANTQUE = auto()
+    FIN_SELON = auto()
     SI = auto()
     ALORS = auto()
     SINON = auto()
@@ -30,6 +32,7 @@ class TT(Enum):
     FONCTION = auto()
     LIRE = auto()
     ECRIRE = auto()
+    ECRIRE_NL = auto()
     DIV = auto()
     MOD = auto()
     ET = auto()
@@ -45,6 +48,14 @@ class TT(Enum):
     REEL = auto()
     BOOLEEN = auto()
     CHAINE = auto()
+    CARACTERE = auto()
+    ENREGISTREMENT = auto()
+    FICHIER = auto()
+    TEXTE = auto()
+    SELON = auto()
+    LIGNES = auto()
+    COLONNES = auto()
+    PAS = auto()
     ASSIGN = auto()
     PLUS = auto()
     MINUS = auto()
@@ -64,6 +75,8 @@ class TT(Enum):
     COMMA = auto()
     COLON = auto()
     AT = auto()
+    DOT = auto()
+    POINT_POINT = auto()
     EOF = auto()
 
 @dataclass
@@ -79,6 +92,7 @@ KEYWORDS = {
     'algorithme': TT.ALGO,
     'algo': TT.ALGO,
     'debut': TT.DEBUT,
+    'd\u00e9but': TT.DEBUT,
     'fin': TT.FIN,
     'si': TT.SI,
     'alors': TT.ALORS,
@@ -99,6 +113,8 @@ KEYWORDS = {
     'lire': TT.LIRE,
     'ecrire': TT.ECRIRE,
     '\u00e9crire': TT.ECRIRE,
+    'ecrire_nl': TT.ECRIRE_NL,
+    '\u00e9crire_nl': TT.ECRIRE_NL,
     'div': TT.DIV,
     'mod': TT.MOD,
     'et': TT.ET,
@@ -117,6 +133,16 @@ KEYWORDS = {
     'bool\u00e9en': TT.BOOLEEN,
     'chaine': TT.CHAINE,
     'cha\u00eene': TT.CHAINE,
+    'caractere': TT.CARACTERE,
+    'caract\u00e8re': TT.CARACTERE,
+    'caract\u00e8res': TT.CARACTERE,
+    'enregistrement': TT.ENREGISTREMENT,
+    'fichier': TT.FICHIER,
+    'texte': TT.TEXTE,
+    'selon': TT.SELON,
+    'lignes': TT.LIGNES,
+    'colonnes': TT.COLONNES,
+    'pas': TT.PAS,
 }
 
 class LexerError(Exception):
@@ -191,6 +217,15 @@ class Lexer:
             ch = self.source[self.pos]
             line, col = self.line, self.col
 
+            # Character literal 'x'
+            if ch == "'":
+                self.advance()
+                c = self.advance() if self.pos < len(self.source) and self.source[self.pos] != "'" else ''
+                if self.pos < len(self.source) and self.source[self.pos] == "'":
+                    self.advance()  # closing '
+                self.tokens.append(Token(TT.CHAR_LIT, c, line, col))
+                continue
+
             # String literal
             if ch == '"':
                 self.advance()
@@ -249,6 +284,9 @@ class Lexer:
                     elif next_lower == 'pour':
                         self.tokens.append(Token(TT.FIN_POUR, 'fin pour', line, col))
                         continue
+                    elif next_lower == 'selon':
+                        self.tokens.append(Token(TT.FIN_SELON, 'fin selon', line, col))
+                        continue
                     elif next_lower == 'tant':
                         state2 = self.save_state()
                         self.skip_all_whitespace()
@@ -268,7 +306,7 @@ class Lexer:
                         self.tokens.append(Token(TT.FIN, 'fin', line, col))
                         continue
 
-                # Compound finsi, finpour, fintantque (no space)
+                # Compound finsi, finpour, fintantque, finselon (no space)
                 if word_lower == 'finsi':
                     self.tokens.append(Token(TT.FIN_SI, 'finsi', line, col))
                     continue
@@ -277,6 +315,9 @@ class Lexer:
                     continue
                 if word_lower == 'fintantque':
                     self.tokens.append(Token(TT.FIN_TANTQUE, 'fintantque', line, col))
+                    continue
+                if word_lower == 'finselon':
+                    self.tokens.append(Token(TT.FIN_SELON, 'finselon', line, col))
                     continue
 
                 if word_lower in KEYWORDS:
@@ -384,6 +425,15 @@ class Lexer:
             if ch == '@':
                 self.advance()
                 self.tokens.append(Token(TT.AT, '@', line, col))
+                continue
+
+            if ch == '.':
+                if self.peek(1) == '.':
+                    self.advance(); self.advance()
+                    self.tokens.append(Token(TT.POINT_POINT, '..', line, col))
+                else:
+                    self.advance()
+                    self.tokens.append(Token(TT.DOT, '.', line, col))
                 continue
 
             # Skip unknown characters
