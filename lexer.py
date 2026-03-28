@@ -243,7 +243,8 @@ class Lexer:
                 is_float = False
                 while self.pos < len(self.source) and self.is_digit(self.source[self.pos]):
                     num_str.append(self.advance())
-                if self.pos < len(self.source) and self.source[self.pos] == '.':
+                if (self.pos < len(self.source) and self.source[self.pos] == '.'
+                        and not (self.pos + 1 < len(self.source) and self.source[self.pos + 1] == '.')):
                     is_float = True
                     num_str.append(self.advance())
                     while self.pos < len(self.source) and self.is_digit(self.source[self.pos]):
