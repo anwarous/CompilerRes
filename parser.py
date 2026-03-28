@@ -550,7 +550,12 @@ class Parser:
         self.expect(TT.A)
         end = self.parse_expr()
         step = None
-        if self.peek().type == TT.PAS:
+        if self.peek().type == TT.AVEC:
+            self.advance()  # avec
+            self.expect(TT.PAS)
+            self.expect(TT.DE)
+            step = self.parse_expr()
+        elif self.peek().type == TT.PAS:
             self.advance()  # Pas
             self.expect(TT.EQ)
             step = self.parse_expr()

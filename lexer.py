@@ -56,6 +56,7 @@ class TT(Enum):
     LIGNES = auto()
     COLONNES = auto()
     PAS = auto()
+    AVEC = auto()
     ASSIGN = auto()
     PLUS = auto()
     MINUS = auto()
@@ -143,6 +144,7 @@ KEYWORDS = {
     'lignes': TT.LIGNES,
     'colonnes': TT.COLONNES,
     'pas': TT.PAS,
+    'avec': TT.AVEC,
 }
 
 class LexerError(Exception):
