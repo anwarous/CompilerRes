@@ -98,11 +98,21 @@ class Interpreter:
     # ── Declarations ─────────────────────────────────────────────────────────
 
     def _process_declarations(self, declarations, env):
+        # First pass: register all user-defined types so that variable
+        # declarations that reference them (e.g. "p avec Personne") can
+        # be initialised correctly in the second pass.
         for decl in declarations:
             if isinstance(decl, TypeDef):
                 self.type_defs[decl.name.lower()] = decl.definition
-            elif isinstance(decl, VarDecl):
-                env.set(decl.name, self._default_value(decl.type_name))
+
+        # Second pass: initialise variables / records / arrays / files.
+        for decl in declarations:
+            if isinstance(decl, VarDecl):
+                type_lower = decl.type_name.lower()
+                if type_lower in self.type_defs:
+                    env.set(decl.name, self._make_record_from_type(type_lower))
+                else:
+                    env.set(decl.name, self._default_value(decl.type_name))
             elif isinstance(decl, ArrayDecl):
                 env.set(decl.name, {})
             elif isinstance(decl, RecordDecl):

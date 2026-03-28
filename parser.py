@@ -320,6 +320,18 @@ class Parser:
         if tok.type == TT.FICHIER:
             return self._parse_file_decl(name)
 
+        # "name avec TypeName" – variable of a named (record) type
+        if tok.type == TT.AVEC:
+            self.advance()  # consume 'avec'
+            if self.peek().type != TT.ID:
+                bad = self.peek()
+                raise ParseError(
+                    f"Expected type name after 'avec' but got "
+                    f"{bad.type.name} ({bad.value!r}) at line {bad.line}"
+                )
+            type_name = self.advance().value
+            return VarDecl(name=name, type_name=type_name)
+
         # Simple types
         if tok.type in self.TYPE_TOKENS:
             type_name = self.advance().value.lower()
@@ -328,6 +340,12 @@ class Parser:
                 if self.peek().type == TT.DE and self.peek(1).type == TT.CARACTERE:
                     self.advance()  # de
                     self.advance()  # caractères
+            return VarDecl(name=name, type_name=type_name)
+
+        # Named type reference without 'avec' (e.g. "p Personne" space-separated).
+        # This handles user-defined type aliases used as a bare type keyword.
+        if tok.type == TT.ID:
+            type_name = self.advance().value
             return VarDecl(name=name, type_name=type_name)
 
         # Unknown type – skip and return a plain VarDecl with type 'entier'
