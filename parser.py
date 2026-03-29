@@ -235,8 +235,25 @@ class Parser:
             if self.peek().type == TT.PRINC:
                 self.advance()
 
-        # Parse declarations (between algorithm name and DEBUT)
-        declarations = self.parse_declarations()
+        # Parse declarations (between algorithm name and DEBUT).
+        # Support explicit 'tdnt' (type defs) and 'tdo' (var decls) sections,
+        # as well as the legacy mixed-declarations format for backward compat.
+        declarations = []
+        has_sections = False
+
+        if self.peek().type == TT.TDNT:
+            self.advance()  # consume 'tdnt'
+            declarations.extend(self._parse_tdnt_inner_section())
+            has_sections = True
+
+        if self.peek().type == TT.TDO:
+            self.advance()  # consume 'tdo'
+            declarations.extend(self._parse_tdo_inner_section())
+            has_sections = True
+
+        if not has_sections:
+            # Backward compat: no explicit section keywords – parse legacy format
+            declarations = self.parse_declarations()
 
         # Parse body
         self.expect(TT.DEBUT)
@@ -278,10 +295,79 @@ class Parser:
     def parse_declarations(self):
         """Parse variable/type declarations between the algorithm name and DEBUT."""
         decls = []
-        while self.peek().type not in (TT.DEBUT, TT.EOF):
+        while self.peek().type not in (TT.DEBUT, TT.TDO, TT.EOF):
             decl = self.parse_one_declaration()
             if decl is not None:
                 decls.append(decl)
+        return decls
+
+    def _parse_tdnt_inner_section(self):
+        """Parse type definitions inside a 'tdnt' section (after algo name).
+
+        Handles lines of the form ``Name = TypeSpec`` (enregistrement, tableau,
+        fichier, or a scalar alias).  Stops when 'tdo', 'debut', or EOF is seen.
+        Returns a list of TypeDef nodes.
+        """
+        decls = []
+        while self.peek().type not in (TT.TDO, TT.DEBUT, TT.EOF):
+            tok = self.peek()
+            if tok.type == TT.ID:
+                # Section header like "Types :" – skip
+                if self.peek(1).type == TT.COLON:
+                    self.advance()  # name
+                    self.advance()  # colon
+                    continue
+                # Type definition: Name = TypeSpec
+                if self.peek(1).type == TT.EQ:
+                    name = self.advance().value
+                    self.advance()  # consume '='
+                    decl = self._parse_type_spec_as_typedef(name)
+                    if decl is not None:
+                        decls.append(decl)
+                    continue
+                # Unrecognised – skip
+                self.advance()
+                continue
+            # Skip non-ID tokens (e.g. extra newlines represented as tokens)
+            self.advance()
+        return decls
+
+    def _parse_tdo_inner_section(self):
+        """Parse variable declarations inside a 'tdo' section (after algo name).
+
+        Handles lines of the form ``name : Type`` (colon syntax) as well as the
+        legacy ``name Type`` (space syntax) for backward compatibility.
+        Stops when 'debut' or EOF is seen.
+        Returns a list of VarDecl / ArrayDecl / RecordDecl / FileDecl nodes.
+        """
+        decls = []
+        while self.peek().type not in (TT.DEBUT, TT.EOF):
+            tok = self.peek()
+            if tok.type == TT.ID:
+                # Colon syntax: name : Type  (standard French algorithmic notation)
+                if self.peek(1).type == TT.COLON:
+                    name = self.advance().value
+                    self.advance()  # consume ':'
+                    decl = self._parse_type_spec_as_decl(name)
+                    if decl is not None:
+                        decls.append(decl)
+                    continue
+                # Type definition in tdo (unusual but accepted): Name = TypeSpec
+                if self.peek(1).type == TT.EQ:
+                    name = self.advance().value
+                    self.advance()  # consume '='
+                    decl = self._parse_type_spec_as_typedef(name)
+                    if decl is not None:
+                        decls.append(decl)
+                    continue
+                # Space syntax (legacy): name Type
+                name = self.advance().value
+                decl = self._parse_type_spec_as_decl(name)
+                if decl is not None:
+                    decls.append(decl)
+                continue
+            # Skip non-ID tokens
+            self.advance()
         return decls
 
     def parse_one_declaration(self):
@@ -335,7 +421,12 @@ class Parser:
                     self.advance()  # caractères
             return VarDecl(name=name, type_name=type_name)
 
-        # Unknown type – skip and return a plain VarDecl with type 'entier'
+        # User-defined type referenced by name (e.g. a record or array typedef)
+        if tok.type == TT.ID:
+            type_name = self.advance().value
+            return VarDecl(name=name, type_name=type_name)
+
+        # Unknown type – return a plain VarDecl with type 'entier'
         return VarDecl(name=name, type_name='entier')
 
     def _parse_type_spec_as_typedef(self, name):

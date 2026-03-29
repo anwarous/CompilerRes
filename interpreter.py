@@ -139,7 +139,16 @@ class Interpreter:
             if isinstance(decl, TypeDef):
                 self.type_defs[decl.name.lower()] = decl.definition
             elif isinstance(decl, VarDecl):
-                env.set(decl.name, self._default_value(decl.type_name))
+                # Check if the type refers to a user-defined type (record, array, file)
+                td = self.type_defs.get(decl.type_name.lower())
+                if isinstance(td, RecordDecl):
+                    env.set(decl.name, self._make_record(td))
+                elif isinstance(td, ArrayDecl):
+                    env.set(decl.name, {})
+                elif isinstance(td, FileDecl):
+                    env.set(decl.name, None)
+                else:
+                    env.set(decl.name, self._default_value(decl.type_name))
             elif isinstance(decl, ArrayDecl):
                 env.set(decl.name, {})
             elif isinstance(decl, RecordDecl):
