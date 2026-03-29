@@ -282,7 +282,10 @@ class Parser:
             return self.advance().value.lower()
         elif tok.type == TT.ID:
             return self.advance().value.lower()
-        return 'entier'
+        raise ParseError(
+            f"Type attendu à la ligne {tok.line} mais '{tok.value}' trouvé : "
+            f"vous devez spécifier un type valide (ex: Entier, Réel, Booléen, Caractère, Chaîne)."
+        )
 
     # ── Declarations ────────────────────────────────────────────────────────
 
@@ -425,8 +428,11 @@ class Parser:
             type_name = self.advance().value
             return VarDecl(name=name, type_name=type_name)
 
-        # Unknown type – return a plain VarDecl with type 'entier'
-        return VarDecl(name=name, type_name='entier')
+        # No type specified — raise an error (type is mandatory)
+        raise ParseError(
+            f"Type manquant pour la variable '{name}' à la ligne {tok.line} : "
+            f"vous devez spécifier le type (ex: Entier, Réel, Booléen, Caractère, Chaîne)."
+        )
 
     def _parse_type_spec_as_typedef(self, name):
         """Parse a type definition (NomType = ...)."""
@@ -592,7 +598,10 @@ class Parser:
             return self.advance().value.lower()
         elif tok.type == TT.ID:
             return self.advance().value.lower()
-        return 'entier'
+        raise ParseError(
+            f"Type de paramètre manquant à la ligne {tok.line} : "
+            f"vous devez spécifier un type valide (ex: Entier, Réel, Booléen, Caractère, Chaîne)."
+        )
 
     # ── Block / Statement ────────────────────────────────────────────────────
 
