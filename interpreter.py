@@ -147,7 +147,11 @@ class Interpreter:
                     env.set(decl.name, {})
                 elif isinstance(td, FileDecl):
                     env.set(decl.name, None)
+                elif isinstance(td, str):
+                    # Scalar type alias defined in tdnt (e.g. MonEntier = Entier)
+                    env.set(decl.name, self._default_value(td))
                 else:
+                    # Built-in type or undefined type — raises error if unknown
                     env.set(decl.name, self._default_value(decl.type_name))
             elif isinstance(decl, ArrayDecl):
                 env.set(decl.name, {})
@@ -168,7 +172,7 @@ class Interpreter:
             return ''
         if t in ('chaîne', 'chaine', 'cha\u00eene', 'chaîne de caractères'):
             return ''
-        return 0
+        raise InterpreterError(f"Type non défini : '{type_name}'")
 
     def _make_record(self, record_decl):
         """Create a dict representing a record with default field values."""
