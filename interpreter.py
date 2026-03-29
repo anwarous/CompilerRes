@@ -417,10 +417,19 @@ class Interpreter:
             if by_ref:
                 ref_params.append((param_name, arg_node, caller_env))
 
+        # Process local declarations (tdo/tdnt sections after the procedure's fin)
+        saved_types = None
+        if proc_def.declarations:
+            saved_types = self._push_local_type_defs(proc_def.declarations)
+            self._process_declarations(proc_def.declarations, local_env)
+
         try:
             self.exec_block(proc_def.body, local_env)
         except ReturnException:
             pass
+        finally:
+            if saved_types is not None:
+                self._pop_local_type_defs(saved_types)
 
         # Write back reference parameters
         for (local_name, arg_node, c_env) in ref_params:
@@ -434,12 +443,44 @@ class Interpreter:
             val = self.eval_expr(arg_node, caller_env)
             local_env.set(param_name, val)
 
+        # Process local declarations (tdo/tdnt sections after the function's fin)
+        saved_types = None
+        if func_def.declarations:
+            saved_types = self._push_local_type_defs(func_def.declarations)
+            self._process_declarations(func_def.declarations, local_env)
+
         try:
             self.exec_block(func_def.body, local_env)
         except ReturnException as e:
             return e.value
+        finally:
+            if saved_types is not None:
+                self._pop_local_type_defs(saved_types)
 
         return 0
+
+    def _push_local_type_defs(self, declarations):
+        """Register TypeDef entries from local declarations into the global type registry.
+
+        Returns a snapshot of the previously registered names so they can be
+        restored after the call (allowing local types to shadow global ones
+        without permanently overwriting them).
+        """
+        snapshot = {}
+        for decl in declarations:
+            if isinstance(decl, TypeDef):
+                key = decl.name.lower()
+                snapshot[key] = self.type_defs.get(key)  # None if absent
+                self.type_defs[key] = decl.definition
+        return snapshot
+
+    def _pop_local_type_defs(self, snapshot):
+        """Restore the type registry to its state before a local-scope call."""
+        for key, prev_value in snapshot.items():
+            if prev_value is None:
+                self.type_defs.pop(key, None)
+            else:
+                self.type_defs[key] = prev_value
 
     # ── Expression evaluation ─────────────────────────────────────────────────
 
