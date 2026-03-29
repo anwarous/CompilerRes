@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from unittest.mock import patch
 import sys
@@ -16,6 +16,24 @@ app = Flask(__name__)
 # exact origin in production (e.g. "https://yoursite.com") to prevent
 # unauthorised cross-origin requests.
 CORS(app, resources={r"/*": {"origins": os.environ.get("ALLOWED_ORIGIN", "*")}})
+
+# Directory where algorithm files are stored on the server.
+FILES_DIR = os.path.join(os.path.dirname(__file__), "algo_files")
+os.makedirs(FILES_DIR, exist_ok=True)
+
+
+def _safe_path(filename: str):
+    """Return the absolute path for *filename* inside FILES_DIR, or None if
+    the resolved path would escape the directory (path-traversal guard)."""
+    # Strip any leading slashes / path components supplied by the caller.
+    basename = os.path.basename(filename)
+    if not basename or basename.startswith("."):
+        return None
+    full = os.path.realpath(os.path.join(FILES_DIR, basename))
+    real_dir = os.path.realpath(FILES_DIR)
+    if os.path.commonpath([full, real_dir]) != real_dir:
+        return None
+    return full
 
 
 def _run_source(source: str, inputs_str: str) -> dict:
@@ -73,6 +91,177 @@ def run_code():
 def health():
     """Simple health-check endpoint."""
     return jsonify({"status": "ok"}), 200
+
+
+# ---------------------------------------------------------------------------
+# File-management endpoints
+# ---------------------------------------------------------------------------
+
+@app.route("/files", methods=["GET"])
+def list_files():
+    """Return a list of all saved algorithm files.
+
+    **Response** (JSON):
+    ```json
+    { "files": ["hello.algo", "sort.algo"] }
+    ```
+    """
+    names = [
+        f for f in os.listdir(FILES_DIR)
+        if not f.startswith(".") and os.path.isfile(os.path.join(FILES_DIR, f))
+    ]
+    return jsonify({"files": sorted(names)}), 200
+
+
+@app.route("/files", methods=["POST"])
+def create_file():
+    """Save a new algorithm file.
+
+    **Request** (JSON):
+    ```json
+    { "name": "hello.algo", "content": "Algorithme hello\\ndebut\\n  Ecrire(\\"Bonjour\\")\\nfin" }
+    ```
+
+    **Response** (JSON) – success `201`:
+    ```json
+    { "name": "hello.algo", "size": 42 }
+    ```
+    """
+    payload = request.get_json(silent=True) or {}
+    name = payload.get("name", "").strip()
+    content = payload.get("content", "")
+
+    if not name:
+        return jsonify({"error": "Field 'name' is required"}), 400
+
+    path = _safe_path(name)
+    if path is None:
+        return jsonify({"error": "Invalid file name"}), 400
+
+    if os.path.exists(path):
+        return jsonify({"error": f"File '{name}' already exists. Use PUT to update it."}), 409
+
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(content)
+
+    return jsonify({"name": os.path.basename(path), "size": os.path.getsize(path)}), 201
+
+
+@app.route("/files/<path:filename>", methods=["GET"])
+def get_file(filename):
+    """Return the content of a saved file.
+
+    **Response** (JSON) – success `200`:
+    ```json
+    { "name": "hello.algo", "content": "..." }
+    ```
+    """
+    path = _safe_path(filename)
+    if path is None or not os.path.isfile(path):
+        return jsonify({"error": f"File '{filename}' not found"}), 404
+
+    with open(path, "r", encoding="utf-8") as fh:
+        content = fh.read()
+
+    return jsonify({"name": os.path.basename(path), "content": content}), 200
+
+
+@app.route("/files/<path:filename>", methods=["PUT"])
+def update_file(filename):
+    """Overwrite (or clear) a saved file's content.
+
+    Send an empty string for ``content`` to clear the file without deleting it.
+
+    **Request** (JSON):
+    ```json
+    { "content": "Algorithme new_version\\n..." }
+    ```
+
+    **Response** (JSON) – success `200`:
+    ```json
+    { "name": "hello.algo", "size": 30 }
+    ```
+    """
+    path = _safe_path(filename)
+    if path is None or not os.path.isfile(path):
+        return jsonify({"error": f"File '{filename}' not found"}), 404
+
+    payload = request.get_json(silent=True) or {}
+    content = payload.get("content", "")
+
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(content)
+
+    return jsonify({"name": os.path.basename(path), "size": os.path.getsize(path)}), 200
+
+
+@app.route("/files/<path:filename>", methods=["DELETE"])
+def delete_file(filename):
+    """Permanently delete a saved file.
+
+    **Response** (JSON) – success `200`:
+    ```json
+    { "deleted": "hello.algo" }
+    ```
+    """
+    path = _safe_path(filename)
+    if path is None or not os.path.isfile(path):
+        return jsonify({"error": f"File '{filename}' not found"}), 404
+
+    os.remove(path)
+    return jsonify({"deleted": os.path.basename(path)}), 200
+
+
+@app.route("/files/<path:filename>/run", methods=["POST"])
+def run_file(filename):
+    """Execute the algorithm stored in *filename*.
+
+    **Request** (JSON, optional):
+    ```json
+    { "inputs": "5,10" }
+    ```
+
+    **Response** (JSON) – success `200`:
+    ```json
+    { "output": "120" }
+    ```
+
+    **Response** (JSON) – error `400`:
+    ```json
+    { "error": "..." }
+    ```
+    """
+    path = _safe_path(filename)
+    if path is None or not os.path.isfile(path):
+        return jsonify({"error": f"File '{filename}' not found"}), 404
+
+    with open(path, "r", encoding="utf-8") as fh:
+        source = fh.read()
+
+    payload = request.get_json(silent=True) or {}
+    inputs_str = payload.get("inputs", "")
+    result = _run_source(source, inputs_str)
+    status = 400 if "error" in result else 200
+    return jsonify(result), status
+
+
+@app.route("/files/<path:filename>/download", methods=["GET"])
+def download_file(filename):
+    """Download the raw algorithm file.
+
+    The response is the file's raw text content with
+    ``Content-Disposition: attachment`` so that browsers trigger a download.
+    """
+    path = _safe_path(filename)
+    if path is None or not os.path.isfile(path):
+        return jsonify({"error": f"File '{filename}' not found"}), 404
+
+    return send_file(
+        path,
+        as_attachment=True,
+        download_name=os.path.basename(path),
+        mimetype="text/plain; charset=utf-8",
+    )
 
 
 if __name__ == "__main__":
