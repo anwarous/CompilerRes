@@ -16,6 +16,7 @@ class ProcDef:
     name: str
     params: list
     body: list
+    declarations: list = field(default_factory=list)
 
 @dataclass
 class FuncDef:
@@ -23,6 +24,7 @@ class FuncDef:
     params: list
     return_type: str
     body: list
+    declarations: list = field(default_factory=list)
 
 # ── Declaration AST nodes ────────────────────────────────────────────────────
 
@@ -235,13 +237,22 @@ class Parser:
             if self.peek().type == TT.PRINC:
                 self.advance()
 
-        # Parse declarations (between algorithm name and DEBUT)
-        declarations = self.parse_declarations()
+        # Parse declarations (between algorithm name and DEBUT).
+        # Support explicit 'tdnt' (type defs) and 'tdo' (var decls) sections
+        # (new style: before debut), as well as the legacy mixed-declarations
+        # format for backward compat.
+        declarations = list(self._parse_optional_pre_debut_sections())
+        if not declarations:
+            # Backward compat: no explicit section keywords – parse legacy format
+            declarations = self.parse_declarations()
 
         # Parse body
         self.expect(TT.DEBUT)
         body = self.parse_block()
         self.expect(TT.FIN)
+
+        # New style: tdnt/tdo sections after fin (declarations come after the body)
+        declarations.extend(self._parse_optional_post_fin_sections())
 
         return Program(tdnt=tdnt, procedures=procedures, functions=functions,
                        algo_name=algo_name, body=body, declarations=declarations)
@@ -278,12 +289,86 @@ class Parser:
     def parse_declarations(self):
         """Parse variable/type declarations between the algorithm name and DEBUT."""
         decls = []
-        while self.peek().type not in (TT.DEBUT, TT.EOF):
+        while self.peek().type not in (TT.DEBUT, TT.TDO, TT.EOF):
             decl = self.parse_one_declaration()
             if decl is not None:
                 decls.append(decl)
         return decls
 
+    # Token types that stop a tdnt/tdo section (section boundary markers)
+    _SECTION_STOP = {TT.DEBUT, TT.TDO, TT.TDNT, TT.ALGO, TT.PROCEDURE, TT.FONCTION, TT.EOF}
+
+    def _parse_tdnt_inner_section(self):
+        """Parse type definitions inside a 'tdnt' section.
+
+        Handles lines of the form ``Name = TypeSpec`` (enregistrement, tableau,
+        fichier, or a scalar alias).  Stops when 'tdo', 'debut', 'algorithme',
+        'procedure', 'fonction', or EOF is seen.
+        Returns a list of TypeDef nodes.
+        """
+        decls = []
+        while self.peek().type not in self._SECTION_STOP:
+            tok = self.peek()
+            if tok.type == TT.ID:
+                # Section header like "Types :" – skip
+                if self.peek(1).type == TT.COLON:
+                    self.advance()  # name
+                    self.advance()  # colon
+                    continue
+                # Type definition: Name = TypeSpec
+                if self.peek(1).type == TT.EQ:
+                    name = self.advance().value
+                    self.advance()  # consume '='
+                    decl = self._parse_type_spec_as_typedef(name)
+                    if decl is not None:
+                        decls.append(decl)
+                    continue
+                # Unrecognised – skip
+                self.advance()
+                continue
+            # Skip non-ID tokens
+            self.advance()
+        return decls
+
+    def _parse_tdo_inner_section(self):
+        """Parse variable declarations inside a 'tdo' section.
+
+        Handles lines of the form ``name : Type`` (colon syntax) as well as the
+        legacy ``name Type`` (space syntax) for backward compatibility.
+        Stops when 'debut', 'tdnt', 'algorithme', 'procedure', 'fonction', or
+        EOF is seen.
+        Returns a list of VarDecl / ArrayDecl / RecordDecl / FileDecl nodes.
+        """
+        _stop = {TT.DEBUT, TT.TDNT, TT.ALGO, TT.PROCEDURE, TT.FONCTION, TT.EOF}
+        decls = []
+        while self.peek().type not in _stop:
+            tok = self.peek()
+            if tok.type == TT.ID:
+                # Colon syntax: name : Type  (standard French algorithmic notation)
+                if self.peek(1).type == TT.COLON:
+                    name = self.advance().value
+                    self.advance()  # consume ':'
+                    decl = self._parse_type_spec_as_decl(name)
+                    if decl is not None:
+                        decls.append(decl)
+                    continue
+                # Type definition in tdo (unusual but accepted): Name = TypeSpec
+                if self.peek(1).type == TT.EQ:
+                    name = self.advance().value
+                    self.advance()  # consume '='
+                    decl = self._parse_type_spec_as_typedef(name)
+                    if decl is not None:
+                        decls.append(decl)
+                    continue
+                # Space syntax (legacy): name Type
+                name = self.advance().value
+                decl = self._parse_type_spec_as_decl(name)
+                if decl is not None:
+                    decls.append(decl)
+                continue
+            # Skip non-ID tokens
+            self.advance()
+        return decls
     def parse_one_declaration(self):
         """Parse a single declaration line.  Returns a decl node or None."""
         tok = self.peek()
@@ -335,7 +420,12 @@ class Parser:
                     self.advance()  # caractères
             return VarDecl(name=name, type_name=type_name)
 
-        # Unknown type – skip and return a plain VarDecl with type 'entier'
+        # User-defined type referenced by name (e.g. a record or array typedef)
+        if tok.type == TT.ID:
+            type_name = self.advance().value
+            return VarDecl(name=name, type_name=type_name)
+
+        # Unknown type – return a plain VarDecl with type 'entier'
         return VarDecl(name=name, type_name='entier')
 
     def _parse_type_spec_as_typedef(self, name):
@@ -426,10 +516,14 @@ class Parser:
             self.advance()
             params = self.parse_params()
             self.expect(TT.RPAREN)
+        # Optional pre-debut declarations (legacy: tdnt/tdo before debut)
+        local_decls = list(self._parse_optional_pre_debut_sections())
         self.expect(TT.DEBUT)
         body = self.parse_block()
         self.expect(TT.FIN)
-        return ProcDef(name=name, params=params, body=body)
+        # New style: optional tdnt/tdo sections after fin
+        local_decls.extend(self._parse_optional_post_fin_sections())
+        return ProcDef(name=name, params=params, body=body, declarations=local_decls)
 
     def parse_function(self):
         self.expect(TT.FONCTION)
@@ -441,10 +535,38 @@ class Parser:
             self.expect(TT.RPAREN)
         self.expect(TT.COLON)
         return_type = self.parse_type_name()
+        # Optional pre-debut declarations (legacy: tdnt/tdo before debut)
+        local_decls = list(self._parse_optional_pre_debut_sections())
         self.expect(TT.DEBUT)
         body = self.parse_block()
         self.expect(TT.FIN)
-        return FuncDef(name=name, params=params, return_type=return_type, body=body)
+        # New style: optional tdnt/tdo sections after fin
+        local_decls.extend(self._parse_optional_post_fin_sections())
+        return FuncDef(name=name, params=params, return_type=return_type,
+                       body=body, declarations=local_decls)
+
+    def _parse_optional_pre_debut_sections(self):
+        """Parse optional tdnt/tdo sections appearing before 'debut' (legacy pre-debut format)."""
+        decls = []
+        if self.peek().type == TT.TDNT:
+            self.advance()
+            decls.extend(self._parse_tdnt_inner_section())
+        if self.peek().type == TT.TDO:
+            self.advance()
+            decls.extend(self._parse_tdo_inner_section())
+        return decls
+
+    def _parse_optional_post_fin_sections(self):
+        """Parse optional tdnt/tdo sections appearing after 'fin' (new post-fin format)."""
+        decls = []
+        if self.peek().type == TT.TDNT:
+            self.advance()
+            decls.extend(self._parse_tdnt_inner_section())
+        if self.peek().type == TT.TDO:
+            self.advance()
+            decls.extend(self._parse_tdo_inner_section())
+        return decls
+
 
     def parse_params(self):
         params = []

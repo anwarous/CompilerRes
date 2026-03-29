@@ -43,6 +43,7 @@ class TT(Enum):
     PROG = auto()
     PRINC = auto()
     TDNT = auto()
+    TDO = auto()
     TABLEAU = auto()
     ENTIER = auto()
     REEL = auto()
@@ -127,6 +128,7 @@ KEYWORDS = {
     'prog': TT.PROG,
     'princ': TT.PRINC,
     'tdnt': TT.TDNT,
+    'tdo': TT.TDO,
     'tableau': TT.TABLEAU,
     'entier': TT.ENTIER,
     'reel': TT.REEL,
